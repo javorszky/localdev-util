@@ -1,0 +1,12 @@
+data/athens/**/*
+!data/athens/.gitkeep
+
+data/grafana/**/*
+!data/grafana/.gitkeep
+
+data/seq/**/*
+!data/seq/.gitkeep
+
+data/tempo/data/**/*
+!data/tempo/config/config.tempo.yaml
+!data/tempo/data/.gitkeep

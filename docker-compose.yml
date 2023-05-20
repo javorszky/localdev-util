@@ -1,0 +1,80 @@
+version: "3.9"
+services:
+  sqelf:
+    image: datalust/seq-input-gelf:latest
+    container_name: util_sqelf
+    depends_on:
+      - seq
+    ports:
+      - "12201:12201/udp"
+    environment:
+      SEQ_ADDRESS: "http://seq:5341"
+    restart: unless-stopped
+
+  seq:
+    image: datalust/seq:latest
+    container_name: util_seq
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: y
+      # to get the password hash, run this:
+      # echo '<password>' | docker run --rm -i datalust/seq config hash
+      SEQ_FIRSTRUN_ADMINPASSWORDHASH: "${SEQ_PH}"
+    ports:
+      - "8089:80" # reach the UI on localhost:8090
+      - "5341:5341" # ingest port is 6666 from outside of docker compose, 5341 from inside of docker compose
+    volumes:
+      - ./data/seq:/data
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: util_tempo
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://host.docker.internal:12201"
+        tag: tempo
+        mode: non-blocking
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./data/tempo/config/config.tempo.yaml:/etc/tempo.yaml
+      - ./data/tempo/data:/tmp/tempo
+    ports:
+      - "6666:4317"  # otlp grpc
+      - "3999"   # tempo
+
+  grafana:
+    depends_on:
+      - tempo
+    image: grafana/grafana-oss
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://host.docker.internal:12201"
+        tag: grafana
+        mode: non-blocking
+    container_name: util_grafana
+    restart: unless-stopped
+    ports:
+      - '3998:3000'
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+
+  athens:
+    platform: linux/amd64
+    image: gomods/athens:v0.12.0
+    container_name: util_athens
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://host.docker.internal:12201"
+        tag: athens
+        mode: non-blocking
+    ports:
+      - "1337:3000"
+    restart: always
+    environment:
+      ATHENS_DISK_STORAGE_ROOT: /var/lib/athens
+      ATHENS_STORAGE_TYPE: disk
+    volumes:
+      - ./data/athens:/var/lib/athens
